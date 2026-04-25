@@ -1,0 +1,14 @@
+# Node.js
+orchestrator/node_modules/
+orchestrator/dist/
+
+# Python
+ui_listener/venv/
+ui_listener/__pycache__/
+
+# Go / Çıktılar
+network_sensor/build/
+*.sock
+
+# İşletim Sistemi
+.DS_Store
