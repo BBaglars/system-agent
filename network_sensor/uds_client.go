@@ -1,4 +1,4 @@
-package network_sensor
+package main
 
 import (
 	"encoding/json"

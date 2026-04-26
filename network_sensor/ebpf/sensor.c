@@ -4,6 +4,7 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
+#define __TARGET_ARCH_x86
 #include <bpf/bpf_tracing.h>
 
 char LICENSE[] SEC("license") = "GPL";
@@ -20,15 +21,18 @@ struct {
     __uint(max_entries, 1 << 24);
 } tcp_events SEC(".maps");
 
-SEC("kprobe/tcp_v4_connect")
-int kprobe_tcp_v4_connect(struct pt_regs *ctx)
+SEC("kprobe/tcp_connect")
+int kprobe_tcp_connect(struct pt_regs *ctx)
 {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     struct tcp_event_t *event;
     __u64 pid_tgid;
 
+    bpf_printk("TCP connect triggered by PID %d", bpf_get_current_pid_tgid() >> 32);
+
     event = bpf_ringbuf_reserve(&tcp_events, sizeof(*event), 0);
     if (!event) {
+        bpf_printk("ringbuf reserve failed in tcp_connect");
         return 0;
     }
 

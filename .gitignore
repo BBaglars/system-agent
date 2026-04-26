@@ -12,3 +12,8 @@ network_sensor/build/
 
 # İşletim Sistemi
 .DS_Store
+
+# eBPF ve Go Çıktıları
+network_sensor/ebpf/vmlinux.h
+network_sensor/agent_sensor
+*.o
