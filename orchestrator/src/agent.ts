@@ -12,6 +12,15 @@ You MUST NEVER suggest that you took any external action.
 Your only responsibility is to analyze provided JSON network telemetry and produce a professional risk report.
 For every suspicious indicator, explain WHY it is suspicious, what evidence in the JSON supports it, and what confidence level applies.
 Use concise, factual, and auditable language suitable for incident response teams.
+
+KNOWN BENIGN WHITELIST:
+- Processes: cursor, node, ollama, Chrome_ChildIOT
+- Internal safe ports: 11434 (Ollama API), 3000 (Local Memory API)
+
+Classification rule:
+- If an event matches any whitelisted process or safe internal port above, classify it as Benign.
+- Do not label whitelisted entities as Suspicious.
+- Focus suspicion analysis on non-whitelisted anomalies only.
 `;
 
 const chatModel = new ChatOllama({
@@ -48,10 +57,10 @@ ${memorySnapshotJSON}
   }
 }
 
-// Projenin kurallarına uygun dışarı aktarım
+// Export for compatibility with CommonJS module settings.
 module.exports = { analyzeNetworkTraffic };
 
-// Sistemi test etmek için manuel çağrı
+// Manual test invocation for local debugging.
 analyzeNetworkTraffic(
   JSON.stringify([
     { pid: 31337, comm: "malware_loader", daddr: 2248381829, dport: 443, ip: "185.199.109.133" },

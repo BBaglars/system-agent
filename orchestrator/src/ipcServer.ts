@@ -31,6 +31,7 @@ interface TcpEvent {
   comm: string;
   daddr: number;
   dport: number;
+  ip_address?: string;
 }
 
 class NetworkMemory {
@@ -142,8 +143,9 @@ function registerClientHandlers(client: net.Socket): void {
 
         // If the payload contains a destination address, format and log it cleanly
         if (event && event.daddr !== undefined) {
-           memory.addEvent(event);
            const humanReadableIP = intToIPv4(event.daddr);
+           const eventWithIP: TcpEvent = { ...event, ip_address: humanReadableIP };
+           memory.addEvent(eventWithIP);
            console.log(`[TCP Connect] PID: ${event.pid} | App: ${event.comm} | Dest IP: ${humanReadableIP} | Dest Port: ${event.dport}`);
         } else {
            // Fallback for generic JSON messages
