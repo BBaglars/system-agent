@@ -3,6 +3,18 @@ import fs = require("node:fs");
 
 const SOCKET_PATH = "/tmp/system_agent.sock";
 
+// Converts a uint32 IPv4 address from eBPF into a standard X.X.X.X string format.
+// Uses bitwise operations to extract octets based on Network Byte Order.
+function intToIPv4(ipInt: number): string {
+  if (!ipInt || ipInt < 0) return "0.0.0.0";
+
+  const octet1 = ipInt & 0xff;
+  const octet2 = (ipInt >>> 8) & 0xff;
+  const octet3 = (ipInt >>> 16) & 0xff;
+  const octet4 = (ipInt >>> 24) & 0xff;
+
+  return `${octet1}.${octet2}.${octet3}.${octet4}`;
+}
 type JsonValue =
   | string
   | number
@@ -10,6 +22,14 @@ type JsonValue =
   | null
   | JsonValue[]
   | { [key: string]: JsonValue };
+
+// Represents the incoming TCP connection event from the eBPF sensor
+interface TcpEvent {
+  pid: number;
+  comm: string;
+  daddr: number;
+  dport: number;
+}
 
 async function removeStaleSocketFile(socketPath: string): Promise<void> {
   try {
@@ -76,7 +96,17 @@ function registerClientHandlers(client: net.Socket): void {
 
       const parsedData = handleIncomingBuffer(payload);
       if (parsedData !== null) {
-        console.log("Received JSON message:", parsedData);
+        // Assume the parsed JSON represents our eBPF tcp_event structure
+        const event = parsedData as unknown as TcpEvent;
+
+        // If the payload contains a destination address, format and log it cleanly
+        if (event && event.daddr !== undefined) {
+           const humanReadableIP = intToIPv4(event.daddr);
+           console.log(`[TCP Connect] PID: ${event.pid} | App: ${event.comm} | Dest IP: ${humanReadableIP} | Dest Port: ${event.dport}`);
+        } else {
+           // Fallback for generic JSON messages
+           console.log("Received JSON message:", parsedData);
+        }
       }
     }
   });
