@@ -1,7 +1,9 @@
 import net = require("node:net");
 import fs = require("node:fs");
+import http = require("node:http");
 
 const SOCKET_PATH = "/tmp/system_agent.sock";
+const HTTP_PORT = 3000;
 
 // Converts a uint32 IPv4 address from eBPF into a standard X.X.X.X string format.
 // Uses bitwise operations to extract octets based on Network Byte Order.
@@ -30,6 +32,45 @@ interface TcpEvent {
   daddr: number;
   dport: number;
 }
+
+class NetworkMemory {
+  private static readonly MAX_EVENTS = 1000;
+  private readonly events: Array<TcpEvent | undefined> = new Array<TcpEvent | undefined>(NetworkMemory.MAX_EVENTS);
+  private writeIndex = 0;
+  private size = 0;
+  private totalAdded = 0;
+
+  addEvent(event: TcpEvent): void {
+    // Overwrite the oldest slot when the fixed-size buffer reaches capacity.
+    this.events[this.writeIndex] = event;
+    this.writeIndex = (this.writeIndex + 1) % NetworkMemory.MAX_EVENTS;
+    this.size = Math.min(this.size + 1, NetworkMemory.MAX_EVENTS);
+    this.totalAdded += 1;
+
+    // Emit periodic health logs to prove memory ingestion is happening.
+    if (this.totalAdded % 100 === 0) {
+      console.log(`Network memory capacity: ${this.size}/${NetworkMemory.MAX_EVENTS}`);
+    }
+  }
+
+  getRecentEvents(): TcpEvent[] {
+    // Return events from oldest to newest so downstream consumers get chronological data.
+    const recentEvents: TcpEvent[] = [];
+    const startIndex = this.size === NetworkMemory.MAX_EVENTS ? this.writeIndex : 0;
+
+    for (let offset = 0; offset < this.size; offset += 1) {
+      const index = (startIndex + offset) % NetworkMemory.MAX_EVENTS;
+      const event = this.events[index];
+      if (event) {
+        recentEvents.push(event);
+      }
+    }
+
+    return recentEvents;
+  }
+}
+
+const memory = new NetworkMemory();
 
 async function removeStaleSocketFile(socketPath: string): Promise<void> {
   try {
@@ -101,6 +142,7 @@ function registerClientHandlers(client: net.Socket): void {
 
         // If the payload contains a destination address, format and log it cleanly
         if (event && event.daddr !== undefined) {
+           memory.addEvent(event);
            const humanReadableIP = intToIPv4(event.daddr);
            console.log(`[TCP Connect] PID: ${event.pid} | App: ${event.comm} | Dest IP: ${humanReadableIP} | Dest Port: ${event.dport}`);
         } else {
@@ -167,4 +209,29 @@ async function startIpcServer(): Promise<void> {
   server.listen(SOCKET_PATH);
 }
 
+function startHttpServer(): void {
+  const httpServer = http.createServer((request, response) => {
+    if (request.url === "/memory" && request.method === "GET") {
+      const recentEvents = memory.getRecentEvents();
+      const responseBody = JSON.stringify(recentEvents);
+
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(responseBody);
+      return;
+    }
+
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "Not Found" }));
+  });
+
+  httpServer.on("error", (error) => {
+    console.error("HTTP server error:", error);
+  });
+
+  httpServer.listen(HTTP_PORT, () => {
+    console.log(`HTTP debug server listening on http://localhost:${HTTP_PORT}`);
+  });
+}
+
+startHttpServer();
 void startIpcServer();
