@@ -12,21 +12,15 @@ const { getToolsForContext } = semanticRouterModule as {
   getToolsForContext: (input: string) => any[];
 };
 
-const SYSTEM_PROMPT = `
-You are a strictly read-only network security observer.
-You DO NOT have any system execution permissions.
-Your only responsibility is to analyze provided JSON network telemetry and produce a professional risk report.
-
-KNOWN BENIGN WHITELIST:
-- Processes: cursor, node, ollama, Chrome_ChildIOT
-- Internal safe ports: 11434 (Ollama API), 3000 (Local Memory API)
-
-CRITICAL RULES (YOU MUST OBEY THESE STRICTLY):
-1. NO HALLUCINATION: Only use the tools explicitly provided to you. NEVER invent or call non-existent tools like 'analyze_network_telemetry'.
-2. IP FORMATTING: When sending an IP address to a tool, you MUST use the human-readable 'ip_address' field (e.g., "8.8.8.8") from the JSON. NEVER use the decimal 'daddr' field.
-3. OUTPUT FORMAT: Always output your final report in clean, readable Markdown. NEVER output raw JSON or internal function call formats as your final response.
-4. EXTERNAL IPs: If you see an external public IP address not in the whitelist, you MUST use the analyze_external_ip tool to investigate it. Incorporate the ISP and Country into your final report to justify if it is Benign or Suspicious.
-`;
+// Minimal prompt deliberately avoids imperative tool-call instructions.
+// Explicit "you MUST call tool X" phrasing causes Llama 3.1 to verbalize tool
+// invocations as text instead of emitting native tool-call tokens, which breaks
+// the LangChain ReAct chain. The model selects tools naturally when it needs data.
+const SYSTEM_PROMPT = `You are a network security analyst.
+Known safe processes: cursor, node, ollama, Chrome_ChildIOT.
+Known safe ports: 11434, 3000.
+Use your available tools when you need network data or IP information.
+Respond only with a clean Markdown security report.`;
 
 // A single shared ChatOllama instance; tool binding is applied per-invocation.
 const chatModel = new ChatOllama({
@@ -67,6 +61,10 @@ async function runDiagnostic(userInput: string): Promise<string> {
     tools: contextualTools,
     // Cap the reasoning loop to prevent runaway tool calls on adversarial inputs.
     maxIterations: 5,
+    // When the model emits malformed tool output (e.g. verbalizes JSON instead of calling
+    // the tool natively), LangChain intercepts the parse error and sends an automatic
+    // correction message back to the model so the loop can recover without crashing.
+    handleParsingErrors: true,
   });
 
   const response = await agentExecutor.invoke({ input: userInput });

@@ -1,8 +1,15 @@
 import lookupIpWrapperModule = require("./wrappers/lookupIpWrapper");
+import fetchSnapshotWrapperModule = require("./wrappers/fetchSnapshotWrapper");
 
 const { analyzeExternalIpTool, triggerKeywords: ipKeywords } = lookupIpWrapperModule as {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   analyzeExternalIpTool: any;
+  triggerKeywords: readonly string[];
+};
+
+const { fetchSnapshotDataTool, triggerKeywords: snapshotKeywords } = fetchSnapshotWrapperModule as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fetchSnapshotDataTool: any;
   triggerKeywords: readonly string[];
 };
 
@@ -25,7 +32,15 @@ const toolCatalog: ToolRegistration[] = [
     tool: analyzeExternalIpTool,
     name: "analyze_external_ip",
     triggerKeywords: ipKeywords,
+    // Included by default so the agent can always investigate unfamiliar IPs.
     isDefault: true,
+  },
+  {
+    tool: fetchSnapshotDataTool,
+    name: "fetch_snapshot_data",
+    triggerKeywords: snapshotKeywords,
+    // Not a default tool: only activated when the user's question involves network data.
+    isDefault: false,
   },
 ];
 

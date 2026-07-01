@@ -1,6 +1,16 @@
 import net = require("node:net");
 import fs = require("node:fs");
 import http = require("node:http");
+import snapshotStoreModule = require("./core/snapshotStore");
+import supervisorModule = require("./core/supervisor");
+
+const { createSnapshot } = snapshotStoreModule as {
+  createSnapshot: (events: object[]) => string;
+};
+
+const { runDiagnostic } = supervisorModule as {
+  runDiagnostic: (userInput: string) => Promise<string>;
+};
 
 const SOCKET_PATH = "/tmp/system_agent.sock";
 const HTTP_PORT = 3000;
@@ -211,14 +221,83 @@ async function startIpcServer(): Promise<void> {
   server.listen(SOCKET_PATH);
 }
 
+// Reads and JSON-parses the full HTTP request body.
+function readRequestBody(request: http.IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+
+    request.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+
+    request.on("end", () => {
+      try {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        resolve(raw.length > 0 ? JSON.parse(raw) : {});
+      } catch {
+        reject(new Error("Request body is not valid JSON"));
+      }
+    });
+
+    request.on("error", reject);
+  });
+}
+
 function startHttpServer(): void {
   const httpServer = http.createServer((request, response) => {
+
+    // GET /memory — raw circular buffer dump for debugging and legacy consumers.
     if (request.url === "/memory" && request.method === "GET") {
       const recentEvents = memory.getRecentEvents();
       const responseBody = JSON.stringify(Array.isArray(recentEvents) ? recentEvents : []);
 
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(responseBody);
+      return;
+    }
+
+    // POST /api/chat — on-demand snapshot analysis entry point.
+    if (request.url === "/api/chat" && request.method === "POST") {
+      void (async () => {
+        try {
+          const body = await readRequestBody(request);
+          const question =
+            body !== null &&
+            typeof body === "object" &&
+            "question" in body &&
+            typeof (body as { question: unknown }).question === "string"
+              ? (body as { question: string }).question.trim()
+              : "";
+
+          if (!question) {
+            response.writeHead(400, { "Content-Type": "application/json" });
+            response.end(JSON.stringify({ error: "Missing or empty 'question' field." }));
+            return;
+          }
+
+          // Freeze the current network state into an immutable, addressable snapshot.
+          const events = memory.getRecentEvents();
+          const sessionId = createSnapshot(events);
+
+          console.log(
+            `[ API ] Chat request received. question="${question}" session=${sessionId} events=${events.length}`
+          );
+
+          // The supervisor receives context metadata only — not the raw event array.
+          // Keeping the prompt neutral lets the model decide when to call tools
+          // rather than being instructed, which avoids tool-verbalization hallucinations.
+          const contextPrompt = `User Question: "${question}"\n[Network Session ID: ${sessionId}]`;
+
+          const report = await runDiagnostic(contextPrompt);
+
+          response.writeHead(200, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ report }));
+        } catch (error) {
+          console.error("[ API ] POST /api/chat failed:", error);
+          response.writeHead(500, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({ error: "Internal server error. Check server logs." }));
+        }
+      })();
       return;
     }
 

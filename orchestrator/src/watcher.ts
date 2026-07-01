@@ -1,3 +1,6 @@
+// DEPRECATED: System is now chat-driven via /api/chat endpoint.
+// This file is kept for reference and emergency debug use only.
+// Do not re-enable startWatcher() in production.
 import supervisorModule = require("./core/supervisor");
 
 const { runDiagnostic } = supervisorModule as {
@@ -61,4 +64,4 @@ function startWatcher(intervalMs: number): void {
   }, intervalMs);
 }
 
-startWatcher(30000);
+// startWatcher(30000);
