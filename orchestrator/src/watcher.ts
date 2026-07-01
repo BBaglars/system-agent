@@ -1,7 +1,7 @@
-import agentModule = require("./agent");
+import supervisorModule = require("./core/supervisor");
 
-const { analyzeNetworkTraffic } = agentModule as {
-  analyzeNetworkTraffic: (memorySnapshotJSON: string) => Promise<void>;
+const { runDiagnostic } = supervisorModule as {
+  runDiagnostic: (userInput: string) => Promise<string>;
 };
 
 const MEMORY_ENDPOINT = "http://localhost:3000/memory";
@@ -23,17 +23,32 @@ async function runWatcherCycle(): Promise<void> {
   try {
     const memorySnapshotJSON = await fetchMemorySnapshot();
 
-    // Parse the snapshot to check for actual events before invoking the LLM.
+    // Parse the snapshot to check for actual events before invoking the supervisor.
     const snapshot = JSON.parse(memorySnapshotJSON) as unknown[];
     if (!Array.isArray(snapshot) || snapshot.length === 0) {
       console.log("No new network activity detected. Skipping AI analysis.");
       return;
     }
 
-    await analyzeNetworkTraffic(memorySnapshotJSON);
+    // Build the diagnostic prompt and route through the supervisor.
+    const userPrompt = `
+Analyze the following network telemetry snapshot.
+Explain suspicious behaviors and why they are suspicious.
+If behavior appears benign, explicitly say so and justify it.
+
+JSON Snapshot:
+${memorySnapshotJSON}
+`;
+
+    const reportText = await runDiagnostic(userPrompt);
+
+    console.log("\n[ AGENT REPORT ]");
+    console.log("=".repeat(70));
+    console.log(reportText);
+    console.log("=".repeat(70));
   } catch (error) {
-    // Keep the watcher alive even if the debug endpoint is temporarily unavailable.
-    console.warn("[ WATCHER ] Memory endpoint is unavailable:", error);
+    // Keep the watcher alive even if the endpoint or supervisor is temporarily unavailable.
+    console.warn("[ WATCHER ] Cycle failed:", error);
   }
 }
 
