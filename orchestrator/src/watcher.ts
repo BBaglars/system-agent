@@ -22,6 +22,14 @@ async function runWatcherCycle(): Promise<void> {
 
   try {
     const memorySnapshotJSON = await fetchMemorySnapshot();
+
+    // Parse the snapshot to check for actual events before invoking the LLM.
+    const snapshot = JSON.parse(memorySnapshotJSON) as unknown[];
+    if (!Array.isArray(snapshot) || snapshot.length === 0) {
+      console.log("No new network activity detected. Skipping AI analysis.");
+      return;
+    }
+
     await analyzeNetworkTraffic(memorySnapshotJSON);
   } catch (error) {
     // Keep the watcher alive even if the debug endpoint is temporarily unavailable.

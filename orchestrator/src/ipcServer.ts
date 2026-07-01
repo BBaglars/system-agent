@@ -215,7 +215,7 @@ function startHttpServer(): void {
   const httpServer = http.createServer((request, response) => {
     if (request.url === "/memory" && request.method === "GET") {
       const recentEvents = memory.getRecentEvents();
-      const responseBody = JSON.stringify(recentEvents);
+      const responseBody = JSON.stringify(Array.isArray(recentEvents) ? recentEvents : []);
 
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(responseBody);
