@@ -45,6 +45,10 @@ _init_session()
 
 messages: list[ChatMessage] = st.session_state["messages"]
 
+# If the user clicked "Ask AI about this packet" on the traffic monitor page,
+# a pre-filled question was stored in session_state.  Consume it once.
+_prefill: str | None = st.session_state.pop("copilot_prefill", None)
+
 # ── Sidebar: quick stats ───────────────────────────────────────────────────────
 with st.sidebar:
     st.subheader("📊 Buffer Stats")
@@ -68,6 +72,10 @@ for message in messages:
 prompt: str | None = st.chat_input(
     "Ağ trafiği hakkında veya şüpheli bir durum olup olmadığına dair bir soru sor…"
 )
+
+# Honour a pre-filled question forwarded from the Traffic Monitor detail panel.
+if _prefill and not prompt:
+    prompt = _prefill
 
 if prompt:
     # 1. Display and persist the user's message immediately.
