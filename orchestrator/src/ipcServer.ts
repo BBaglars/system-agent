@@ -9,7 +9,7 @@ const { createSnapshot } = snapshotStoreModule as {
 };
 
 const { runDiagnostic } = supervisorModule as {
-  runDiagnostic: (userInput: string) => Promise<string>;
+  runDiagnostic: (userInput: string, sessionId: string) => Promise<string>;
 };
 
 const SOCKET_PATH = "/tmp/system_agent.sock";
@@ -283,12 +283,11 @@ function startHttpServer(): void {
             `[ API ] Chat request received. question="${question}" session=${sessionId} events=${events.length}`
           );
 
-          // The supervisor receives context metadata only — not the raw event array.
-          // Keeping the prompt neutral lets the model decide when to call tools
-          // rather than being instructed, which avoids tool-verbalization hallucinations.
-          const contextPrompt = `User Question: "${question}"\n[Network Session ID: ${sessionId}]`;
-
-          const report = await runDiagnostic(contextPrompt);
+          // Fully neutral prompt: no tool-call directives.
+          // Pass question and sessionId as separate arguments.
+          // The supervisor's extractor stage decides whether the snapshot is needed;
+          // the Node.js executor fetches data directly — no LLM tool-call tokens involved.
+          const report = await runDiagnostic(question, sessionId);
 
           response.writeHead(200, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ report }));

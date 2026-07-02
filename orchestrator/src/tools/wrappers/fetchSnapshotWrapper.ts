@@ -83,9 +83,19 @@ const fetchSnapshotDataTool = (tool as any)(
 
 // Trigger keywords activate this tool in the semantic router when matched against user input.
 const triggerKeywords: readonly string[] = [
+  // English
   "session", "snapshot", "filter", "data", "traffic",
   "show", "list", "fetch", "get", "events",
   "connections", "packets", "activity", "history",
+  "network", "port", "security", "analyze", "check",
+  // Turkish — network / traffic analysis intent
+  "ağ", "paket", "trafik", "bağlan", "bağlantı",
+  "giriş", "port", "kontrol", "analiz", "hata",
+  "internet", "sorun", "çalışmıyor", "erişim",
+  "izle", "gözlemle", "denetle", "tarama",
+  "güvenlik", "listele", "göster", "süreç",
+  "uygulama", "program", "sunucu", "bağlanamıyorum",
+  "giremiyorum", "açılmıyor", "yavaş", "engel",
 ];
 
 module.exports = { fetchSnapshotDataTool, triggerKeywords };

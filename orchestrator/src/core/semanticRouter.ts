@@ -7,12 +7,14 @@ const { toolCatalog } = toolRegistryModule as {
 };
 
 // Splits input into lowercase tokens for keyword matching.
-// Punctuation is stripped so "185.199.109.133," matches "ip"-related keywords.
+// Uses toLocaleLowerCase() for correct Turkish i/İ casing (e.g. "İP" → "ip").
+// The Unicode \p{L} class preserves all script letters (Latin, Turkish, etc.)
+// while still stripping punctuation, so "bağlan," correctly yields "bağlan".
 function tokenize(input: string): Set<string> {
   return new Set(
     input
-      .toLowerCase()
-      .replace(/[^a-z0-9.\s]/g, " ")
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}0-9.\s]/gu, " ")
       .split(/\s+/)
       .filter(Boolean)
   );
@@ -41,14 +43,10 @@ function getToolsForContext(input: string): any[] {
     }
   }
 
-  if (matched.length > 0) {
-    return matched;
-  }
-
-  // No keyword matched — return default tools so the agent is never tool-less.
-  return toolCatalog
-    .filter((registration) => registration.isDefault)
-    .map((registration) => registration.tool);
+  // Return only the tools that matched. An empty array is intentional:
+  // it signals the supervisor that no domain tools are needed, allowing
+  // the model to respond conversationally without forcing a security report.
+  return matched;
 }
 
 module.exports = { getToolsForContext };

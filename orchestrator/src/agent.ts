@@ -1,28 +1,30 @@
-// This module is a thin facade over the supervisor.
-// All LangChain/ReAct logic lives in core/supervisor.ts.
-// External callers (watcher, HTTP handlers, tests) should prefer importing
-// runDiagnostic from supervisor directly when they need the raw report string.
+// Thin facade over the supervisor's deterministic pipeline.
+// External callers that need the raw report string should import runDiagnostic
+// from core/supervisor.ts directly.
 
 import supervisorModule = require("./core/supervisor");
+import snapshotStoreModule = require("./core/snapshotStore");
 
 const { runDiagnostic } = supervisorModule as {
-  runDiagnostic: (userInput: string) => Promise<string>;
+  runDiagnostic: (userInput: string, sessionId: string) => Promise<string>;
 };
 
-// analyzeNetworkTraffic is kept for backwards compatibility with existing callers.
-// It builds the diagnostic prompt, delegates to supervisor, and formats the console output.
-async function analyzeNetworkTraffic(memorySnapshotJSON: string): Promise<void> {
-  const userPrompt = `
-Analyze the following network telemetry snapshot.
-Explain suspicious behaviors and why they are suspicious.
-If behavior appears benign, explicitly say so and justify it.
+const { createSnapshot } = snapshotStoreModule as {
+  createSnapshot: (events: object[]) => string;
+};
 
-JSON Snapshot:
-${memorySnapshotJSON}
-`;
+// analyzeNetworkTraffic is kept for backwards compatibility.
+// It creates an ephemeral snapshot from a pre-serialised JSON blob and
+// delegates to the supervisor pipeline, logging the report to the console.
+async function analyzeNetworkTraffic(memorySnapshotJSON: string): Promise<void> {
+  const events = JSON.parse(memorySnapshotJSON) as object[];
+  const sessionId = createSnapshot(events);
 
   try {
-    const reportText = await runDiagnostic(userPrompt);
+    const reportText = await runDiagnostic(
+      "Analyze the current network activity for anything suspicious.",
+      sessionId
+    );
 
     console.log("\n[ AGENT REPORT ]");
     console.log("=".repeat(70));
@@ -38,6 +40,6 @@ module.exports = { analyzeNetworkTraffic };
 // Manual test invocation for local debugging.
 // analyzeNetworkTraffic(
 //   JSON.stringify([
-//     { pid: 31337, comm: "malware_loader", daddr: 2248381829, dport: 443, ip: "185.199.109.133" },
+//     { pid: 31337, comm: "malware_loader", daddr: 2248381829, dport: 443, ip_address: "185.199.109.133" },
 //   ])
 // );

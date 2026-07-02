@@ -34,9 +34,13 @@ const analyzeExternalIpTool = (tool as any)(
 // Trigger keywords tell the semantic router when to activate this tool.
 // Extend this list as new network telemetry patterns are discovered.
 const triggerKeywords: readonly string[] = [
+  // English
   "ip", "external", "public", "network", "address",
   "remote", "internet", "outbound", "destination", "daddr",
   "isp", "geolocation", "country", "org",
+  // Turkish — IP / geolocation intent
+  "adres", "ülke", "şüpheli", "tehlikeli", "zararlı",
+  "dış", "harici", "kaynak", "hedef", "sorgula",
 ];
 
 module.exports = { analyzeExternalIpTool, triggerKeywords };
