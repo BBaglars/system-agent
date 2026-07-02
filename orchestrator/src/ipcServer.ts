@@ -41,6 +41,7 @@ interface TcpEvent {
   comm: string;
   daddr: number;
   dport: number;
+  tcp_state?: number;  // 1=TCP_ESTABLISHED, 7=TCP_CLOSE (connection refused/reset)
   ip_address?: string;
 }
 
@@ -156,7 +157,17 @@ function registerClientHandlers(client: net.Socket): void {
            const humanReadableIP = intToIPv4(event.daddr);
            const eventWithIP: TcpEvent = { ...event, ip_address: humanReadableIP };
            memory.addEvent(eventWithIP);
-           console.log(`[TCP Connect] PID: ${event.pid} | App: ${event.comm} | Dest IP: ${humanReadableIP} | Dest Port: ${event.dport}`);
+
+           // Translate numeric tcp_state into a human-readable outcome label.
+           const stateLabel =
+             event.tcp_state === 1 ? "ESTABLISHED" :
+             event.tcp_state === 7 ? "CLOSED/REFUSED" :
+             event.tcp_state !== undefined ? `STATE(${event.tcp_state})` : "UNKNOWN";
+
+           console.log(
+             `[TCP ${stateLabel}] PID: ${event.pid} | App: ${event.comm} | ` +
+             `Dest IP: ${humanReadableIP} | Dest Port: ${event.dport}`
+           );
         } else {
            // Fallback for generic JSON messages
            console.log("Received JSON message:", parsedData);

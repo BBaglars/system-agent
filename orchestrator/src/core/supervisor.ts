@@ -1,8 +1,11 @@
 import ollamaModule = require("@langchain/ollama");
 import messagesModule = require("@langchain/core/messages");
+import dnsModule = require("node:dns");
 import semanticRouterModule = require("./semanticRouter");
 import snapshotStoreModule = require("./snapshotStore");
 import lookupIpInfoSkill = require("../../../skills/lookupIpInfo");
+
+const dns = dnsModule.promises;
 
 const { ChatOllama } = ollamaModule;
 const { HumanMessage, SystemMessage } = messagesModule;
@@ -80,6 +83,54 @@ interface ExtractorResult {
   limit?: number;
 }
 
+// Filtered event shape returned by snapshotStore.filterEvents.
+interface TcpEventLike {
+  ip_address?: string;
+  [key: string]: unknown;
+}
+
+interface EnrichedEvent extends TcpEventLike {
+  resolved_hostname: string;
+}
+
+// ── Post-filtering DNS enrichment ─────────────────────────────────────────────
+
+// Performs reverse DNS lookups only on the small filtered batch (≤ 15 events),
+// never on the full 1000-event buffer. All lookups run in parallel so total
+// latency equals one lookup, not N lookups.
+async function enrichWithReverseDns(events: object[]): Promise<EnrichedEvent[]> {
+  const typedEvents = events as TcpEventLike[];
+
+  // Collect unique IPs present in this filtered batch.
+  const uniqueIps = new Set<string>(
+    typedEvents
+      .map((e) => e.ip_address)
+      .filter((ip): ip is string => typeof ip === "string" && ip.length > 0)
+  );
+
+  const dnsCache = new Map<string, string>();
+
+  await Promise.all(
+    [...uniqueIps].map(async (ip) => {
+      try {
+        const hostnames = await dns.reverse(ip);
+        dnsCache.set(ip, hostnames[0] ?? ip);
+      } catch {
+        // ENOTFOUND / private-range / unresolvable — keep the raw IP address.
+        dnsCache.set(ip, ip);
+      }
+    })
+  );
+
+  return typedEvents.map((event) => ({
+    ...event,
+    resolved_hostname:
+      event.ip_address !== undefined
+        ? (dnsCache.get(event.ip_address) ?? event.ip_address)
+        : "unknown",
+  }));
+}
+
 // ── Deterministic executor (zero LLM) ─────────────────────────────────────────
 
 // Executes the tool call decided by the extractor using Node.js directly.
@@ -101,7 +152,9 @@ async function executeToolCall(
       return "No matching events found in snapshot for the given filters.";
     }
 
-    return JSON.stringify(events, null, 2);
+    // Enrich filtered events with reverse DNS hostnames before handing to the reporter.
+    const enrichedEvents = await enrichWithReverseDns(events);
+    return JSON.stringify(enrichedEvents, null, 2);
   }
 
   if (toolCall.tool === "analyze_external_ip" && toolCall.ip_address !== undefined) {

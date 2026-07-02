@@ -8,9 +8,19 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"structs"
 
 	"github.com/cilium/ebpf"
 )
+
+type bpfPendingConnectT struct {
+	_     structs.HostLayout
+	Pid   uint32
+	Comm  [16]int8
+	Daddr uint32
+	Dport uint16
+	_     [2]byte
+}
 
 // loadBpf returns the embedded CollectionSpec for bpf.
 func loadBpf() (*ebpf.CollectionSpec, error) {
@@ -54,14 +64,16 @@ type bpfSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfProgramSpecs struct {
-	KprobeTcpConnect *ebpf.ProgramSpec `ebpf:"kprobe_tcp_connect"`
+	KprobeTcpConnect  *ebpf.ProgramSpec `ebpf:"kprobe_tcp_connect"`
+	KprobeTcpSetState *ebpf.ProgramSpec `ebpf:"kprobe_tcp_set_state"`
 }
 
 // bpfMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
-	TcpEvents *ebpf.MapSpec `ebpf:"tcp_events"`
+	PendingConnects *ebpf.MapSpec `ebpf:"pending_connects"`
+	TcpEvents       *ebpf.MapSpec `ebpf:"tcp_events"`
 }
 
 // bpfVariableSpecs contains global variables before they are loaded into the kernel.
@@ -90,11 +102,13 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
-	TcpEvents *ebpf.Map `ebpf:"tcp_events"`
+	PendingConnects *ebpf.Map `ebpf:"pending_connects"`
+	TcpEvents       *ebpf.Map `ebpf:"tcp_events"`
 }
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
+		m.PendingConnects,
 		m.TcpEvents,
 	)
 }
@@ -109,12 +123,14 @@ type bpfVariables struct {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfPrograms struct {
-	KprobeTcpConnect *ebpf.Program `ebpf:"kprobe_tcp_connect"`
+	KprobeTcpConnect  *ebpf.Program `ebpf:"kprobe_tcp_connect"`
+	KprobeTcpSetState *ebpf.Program `ebpf:"kprobe_tcp_set_state"`
 }
 
 func (p *bpfPrograms) Close() error {
 	return _BpfClose(
 		p.KprobeTcpConnect,
+		p.KprobeTcpSetState,
 	)
 }
 

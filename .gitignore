@@ -17,6 +17,7 @@ network_sensor/build/
 network_sensor/ebpf/vmlinux.h
 network_sensor/agent_sensor
 *.o
+*.exe
 
 # Katman 3: Python & Streamlit UI
 **/__pycache__/
