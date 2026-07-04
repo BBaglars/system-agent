@@ -139,3 +139,50 @@ def clear_all_history() -> None:
         # CASCADE via foreign key removes messages automatically.
         conn.execute("DELETE FROM conversations")
         conn.commit()
+
+
+class ConversationSummary(TypedDict):
+    id: int
+    session_id: str
+    created_at: str       # ISO-8601 string from SQLite
+    preview: str          # First 30 chars of the first user message, or "(boş)"
+
+
+def list_all_conversations() -> list[ConversationSummary]:
+    """Return all conversations newest-first, each with a short preview title.
+
+    The preview is the first 30 characters of the first user message in that
+    conversation — giving the sidebar entry a meaningful label like
+    '2026-07-05 00:32 · Hangi portlar açık?...' instead of a bare UUID.
+    """
+    sql = """
+        SELECT
+            c.id,
+            c.session_id,
+            c.created_at,
+            COALESCE(
+                SUBSTR(
+                    (SELECT m.content
+                     FROM   messages m
+                     WHERE  m.conversation_id = c.id
+                       AND  m.role = 'user'
+                     ORDER BY m.id ASC
+                     LIMIT 1),
+                    1, 30
+                ),
+                '(boş)'
+            ) AS preview
+        FROM conversations c
+        ORDER BY c.id DESC
+    """
+    with _connect() as conn:
+        rows = conn.execute(sql).fetchall()
+    return [
+        ConversationSummary(
+            id=int(row["id"]),
+            session_id=row["session_id"],
+            created_at=row["created_at"],
+            preview=row["preview"],
+        )
+        for row in rows
+    ]
