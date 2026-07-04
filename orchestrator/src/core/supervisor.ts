@@ -4,6 +4,9 @@ import dnsModule = require("node:dns");
 import semanticRouterModule = require("./semanticRouter");
 import snapshotStoreModule = require("./snapshotStore");
 import lookupIpInfoSkill = require("../../../skills/lookupIpInfo");
+import listListeningPortsSkill = require("../../../skills/listListeningPorts");
+
+import type { ListeningPortsResult } from "../../../skills/listListeningPorts";
 
 const dns = dnsModule.promises;
 
@@ -23,6 +26,10 @@ const { filterEvents } = snapshotStoreModule as {
 
 const { lookupIpInfo } = lookupIpInfoSkill as {
   lookupIpInfo: (ip: string) => Promise<string>;
+};
+
+const { listListeningPorts } = listListeningPortsSkill as {
+  listListeningPorts: (targetPort?: number) => Promise<ListeningPortsResult>;
 };
 
 // ── Model instances ────────────────────────────────────────────────────────────
@@ -51,17 +58,23 @@ FIELD RULES — follow these exactly:
 2. "comm": include ONLY if the user names a specific OS process (e.g. "curl", "chrome.exe"). Web sites (YouTube, Google) and generic phrases ("the internet", "my browser") are NOT process names — omit "comm" for them.
 3. "dport": include ONLY if the user names a specific port number. Exception: if the user mentions a web site (YouTube, Google, etc.) or says they cannot access a URL / the internet, infer HTTPS and output "dport": 443.
 4. "limit": always include as 15 when tool is fetch_snapshot_data.
+5. "target_port": include ONLY when tool is list_listening_ports AND the user names a specific port number to check. Omit if they ask for all ports.
 
 CLASSIFICATION:
 - Conversational, greeting, or off-topic → {}
 - Network traffic inspection needed → {"tool":"fetch_snapshot_data", ...only known fields..., "limit":15}
 - A specific IP address must be looked up → {"tool":"analyze_external_ip","ip_address":"<the ip>"}
+- User asks which ports are open OR whether a specific port/service is listening → {"tool":"list_listening_ports"} or {"tool":"list_listening_ports","target_port":<number>}
 
 EXAMPLES:
 - "YouTube'a giremiyorum" → {"tool":"fetch_snapshot_data","dport":443,"limit":15}
 - "Chrome trafiğini kontrol et" → {"tool":"fetch_snapshot_data","comm":"chrome","dport":443,"limit":15}
 - "curl ile bir sorun var" → {"tool":"fetch_snapshot_data","comm":"curl","limit":15}
 - "185.199.109.133 şüpheli mi?" → {"tool":"analyze_external_ip","ip_address":"185.199.109.133"}
+- "Hangi portlar açık?" → {"tool":"list_listening_ports"}
+- "3000 portu dinleniyor mu?" → {"tool":"list_listening_ports","target_port":3000}
+- "Redis çalışıyor mu?" → {"tool":"list_listening_ports","target_port":6379}
+- "8080'de bir şey var mı?" → {"tool":"list_listening_ports","target_port":8080}
 - "Nasılsın?" → {}`;
 
 const REPORTER_PROMPT = `You are a network security analyst.
@@ -76,11 +89,13 @@ Answer conversationally and honestly. If you do not know something, say so.`;
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface ExtractorResult {
-  tool?: "fetch_snapshot_data" | "analyze_external_ip" | null;
+  tool?: "fetch_snapshot_data" | "analyze_external_ip" | "list_listening_ports" | null;
   comm?: string;
   ip_address?: string;
   dport?: number;
   limit?: number;
+  // list_listening_ports parameter: omit to get all ports, set to check a specific one.
+  target_port?: number;
 }
 
 // Filtered event shape returned by snapshotStore.filterEvents.
@@ -159,6 +174,12 @@ async function executeToolCall(
 
   if (toolCall.tool === "analyze_external_ip" && toolCall.ip_address !== undefined) {
     return await lookupIpInfo(toolCall.ip_address);
+  }
+
+  if (toolCall.tool === "list_listening_ports") {
+    // target_port is optional: undefined means "return all listening ports".
+    const result = await listListeningPorts(toolCall.target_port);
+    return JSON.stringify(result, null, 2);
   }
 
   return "";

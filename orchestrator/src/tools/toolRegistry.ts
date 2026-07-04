@@ -1,5 +1,6 @@
 import lookupIpWrapperModule = require("./wrappers/lookupIpWrapper");
 import fetchSnapshotWrapperModule = require("./wrappers/fetchSnapshotWrapper");
+import listenPortsWrapperModule = require("./wrappers/listenPortsWrapper");
 
 const { analyzeExternalIpTool, triggerKeywords: ipKeywords } = lookupIpWrapperModule as {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,6 +11,12 @@ const { analyzeExternalIpTool, triggerKeywords: ipKeywords } = lookupIpWrapperMo
 const { fetchSnapshotDataTool, triggerKeywords: snapshotKeywords } = fetchSnapshotWrapperModule as {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fetchSnapshotDataTool: any;
+  triggerKeywords: readonly string[];
+};
+
+const { listListeningPortsTool, triggerKeywords: listenPortsKeywords } = listenPortsWrapperModule as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  listListeningPortsTool: any;
   triggerKeywords: readonly string[];
 };
 
@@ -40,6 +47,13 @@ const toolCatalog: ToolRegistration[] = [
     name: "fetch_snapshot_data",
     triggerKeywords: snapshotKeywords,
     // Not a default tool: only activated when the user's question involves network data.
+    isDefault: false,
+  },
+  {
+    tool: listListeningPortsTool,
+    name: "list_listening_ports",
+    triggerKeywords: listenPortsKeywords,
+    // Not a default tool: only activated when the user asks about live port/service state.
     isDefault: false,
   },
 ];
