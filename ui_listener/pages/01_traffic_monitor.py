@@ -25,6 +25,7 @@ if str(_ROOT) not in sys.path:
 
 from api.orchestrator_client import get_memory_events
 from config import MAX_DISPLAYED_EVENTS, TRAFFIC_REFRESH_INTERVAL_MS
+from sidebar_nav import render_sidebar_nav
 
 
 # ---------------------------------------------------------------------------
@@ -51,10 +52,12 @@ def resolve_hostname(ip: str) -> str:
 # Page config (must be the very first Streamlit call in this file).
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Open Claw — Traffic Monitor",
-    page_icon="📡",
+    page_title="NetSkill Agent — Trafik Monitörü",
+    page_icon="🌐",
     layout="wide",
 )
+
+render_sidebar_nav()
 
 # ---------------------------------------------------------------------------
 # Custom CSS — dark-terminal aesthetic, coloured state badges.
@@ -128,7 +131,7 @@ st.markdown(
 # ---------------------------------------------------------------------------
 col_title, col_status = st.columns([4, 1])
 with col_title:
-    st.markdown("## 📡 Live Traffic Monitor")
+    st.markdown("## 🌐 Live Traffic Monitor")
     st.caption("Real-time eBPF kernel events · Auto-refreshes every 2 s")
 
 # ---------------------------------------------------------------------------

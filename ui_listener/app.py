@@ -10,15 +10,18 @@ Run with:
 """
 
 import streamlit as st
+from sidebar_nav import render_sidebar_nav
 
 st.set_page_config(
-    page_title="Open Claw — Network Security Agent",
-    page_icon="🦞",
+    page_title="NetSkill Agent — Sistem Özeti",
+    page_icon="🌐",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-st.title("🦞 Open Claw — Network Security Agent")
+render_sidebar_nav()
+
+st.title("🌐 NetSkill Agent — Sistem Özeti")
 
 st.info(
     "Use the **left sidebar** to navigate between panels:\n\n"

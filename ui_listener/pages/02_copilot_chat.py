@@ -19,7 +19,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from api.orchestrator_client import get_memory_events, post_chat
+from api.orchestrator_client import post_chat
 from chat_history import (
     ChatMessage,
     ConversationSummary,
@@ -30,28 +30,72 @@ from chat_history import (
     load_messages,
     save_message,
 )
+from sidebar_nav import render_sidebar_nav
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Open Claw — Security Copilot",
-    page_icon="🤖",
+    page_title="NetSkill Agent — Siber Copilot",
+    page_icon="🌐",
     layout="wide",
 )
+
+render_sidebar_nav()
 
 # ── Dark-theme CSS tweaks ──────────────────────────────────────────────────────
 st.markdown(
     """
     <style>
-    /* Chip buttons — compact, borderless feel */
-    div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
-        font-size: 0.78rem;
-        padding: 4px 8px;
-        border-radius: 20px;
+    /* ── Sidebar session-archive list ─────────────────────────────────────── */
+
+    /* All sidebar buttons: strip default appearance → make them look like
+       slim, left-aligned list rows (ChatGPT sidebar style).               */
+    section[data-testid="stSidebar"] button {
+        text-align:       left !important;
+        justify-content:  flex-start !important;
+        padding:          5px 10px !important;
+        border-radius:    6px !important;
+        font-size:        0.82rem !important;
+        font-weight:      400 !important;
+        line-height:      1.4 !important;
+        min-height:       0 !important;
+        width:            100% !important;
+        border:           none !important;
+        box-shadow:       none !important;
+        /* Transparent background by default */
+        background:       transparent !important;
+        color:            #94a3b8 !important;
+        transition:       background 0.15s ease, color 0.15s ease !important;
     }
-    /* Active sidebar session button — subtle left accent */
+
+    /* Hover state: subtle blue-tinted highlight */
+    section[data-testid="stSidebar"] button:hover {
+        background: rgba(59, 130, 246, 0.12) !important;
+        color:      #e2e8f0 !important;
+    }
+
+    /* Active (primary) session: left-accent bar + brighter text */
     section[data-testid="stSidebar"] button[kind="primary"] {
-        border-left: 3px solid #58a6ff;
-        border-radius: 4px;
+        background:   rgba(59, 130, 246, 0.18) !important;
+        color:        #f1f5f9 !important;
+        border-left:  3px solid #3b82f6 !important;
+        font-weight:  600 !important;
+    }
+    section[data-testid="stSidebar"] button[kind="primary"]:hover {
+        background:   rgba(59, 130, 246, 0.28) !important;
+    }
+
+    /* Tighten the gap between consecutive session buttons */
+    section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] > div {
+        gap: 2px !important;
+    }
+
+    /* ── Quick-action chips ────────────────────────────────────────────────── */
+    /* Compact pill style for the 5-column chip row in the main area         */
+    div[data-testid="stHorizontalBlock"] button {
+        font-size:      0.76rem !important;
+        padding:        4px 10px !important;
+        border-radius:  20px !important;
+        font-weight:    500 !important;
     }
     </style>
     """,
@@ -142,23 +186,25 @@ _chip_prefill: str | None = st.session_state.pop("chip_prefill", None)
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
 
-    # ── Live buffer metric ─────────────────────────────────────────────────────
-    st.markdown("### 📡 Open Claw")
-    try:
-        event_count = len(get_memory_events())
-        st.metric("eBPF Events in buffer", f"{event_count:,}")
-    except Exception:  # noqa: BLE001
-        st.warning("⚠️ Orchestrator'a ulaşılamıyor.")
-
-    st.divider()
-
-    # ── Session archive ────────────────────────────────────────────────────────
-    st.markdown("#### 📋 Oturum Arşivi")
-
+    # Fetch conversations first — needed for both the metric count and the list below.
     try:
         all_convs: list[ConversationSummary] = list_all_conversations()
     except Exception:  # noqa: BLE001
         all_convs = []
+
+    # ── Copilot status block ───────────────────────────────────────────────────
+    st.markdown("### 🤖 Ajan Durumu")
+
+    m1, m2 = st.columns(2)
+    m1.metric("Aktif Yetenek", 5)
+    m2.metric("Toplam Arşiv", len(all_convs))
+
+    st.caption("🟢 Sistem Çevrimiçi")
+
+    st.divider()
+
+    # ── Session archive list ───────────────────────────────────────────────────
+    st.markdown("#### 📋 Oturum Arşivi")
 
     if not all_convs:
         st.caption("Henüz geçmiş sohbet yok.")
@@ -203,7 +249,7 @@ with st.sidebar:
         st.rerun()
 
 # ── Page header ────────────────────────────────────────────────────────────────
-st.markdown("## 🤖 Security Copilot")
+st.markdown("## 🌐 Security Copilot")
 st.caption(
     "Llama 3.1 ağ tanılama ajanına ağ trafiği, servis durumu veya bağlantı sorunları "
     "hakkında soru sor. Sohbet geçmişi kalıcı olarak kaydedilir."

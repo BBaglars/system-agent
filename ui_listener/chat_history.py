@@ -170,7 +170,7 @@ def list_all_conversations() -> list[ConversationSummary]:
                      LIMIT 1),
                     1, 30
                 ),
-                '(boş)'
+                'Yeni oturum…'
             ) AS preview
         FROM conversations c
         ORDER BY c.id DESC
