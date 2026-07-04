@@ -47,6 +47,14 @@ st.markdown(
     <style>
     /* ── Sidebar session-archive list ─────────────────────────────────────── */
 
+    /* ── Sidebar metric kartları ──────────────────────────────────────── */
+    section[data-testid="stSidebar"] div[data-testid="stMetric"] {
+        background:    #1e293b !important;
+        border:        1px solid #2d3a4a !important;
+        border-radius: 8px !important;
+        padding:       10px 14px !important;
+    }
+
     /* All sidebar buttons: strip default appearance → make them look like
        slim, left-aligned list rows (ChatGPT sidebar style).               */
     section[data-testid="stSidebar"] button {
@@ -199,7 +207,7 @@ with st.sidebar:
     m1.metric("Aktif Yetenek", 5)
     m2.metric("Toplam Arşiv", len(all_convs))
 
-    st.caption("🟢 Sistem Çevrimiçi")
+    st.success("🟢 Sistem Çevrimiçi")
 
     st.divider()
 
