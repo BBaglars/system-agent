@@ -44,23 +44,30 @@ def get_memory_events() -> list[dict]:
         return []
 
 
-def post_chat(question: str) -> str:
+def post_chat(question: str, history: list | None = None) -> str:
     """Send a natural-language question to the AI agent and return its Markdown report.
 
     The orchestrator will:
       1. Freeze a snapshot of the current network buffer.
-      2. Start a LangChain ReAct loop (Llama 3.1 + tools).
-      3. Return a Markdown-formatted security report.
+      2. Run the deterministic Extractor → Executor → Reporter pipeline.
+      3. Return a Markdown-formatted report.
 
     Args:
         question: The user's free-text question about network activity.
+        history:  Optional list of previous messages in the conversation,
+                  each a dict with "role" ("user"|"assistant") and "content".
+                  Passed to the Reporter LLM for conversational context.
+                  The caller is responsible for limiting the list length.
 
     Returns:
         A Markdown string containing the agent's report, or a human-readable
         error message if the request fails.
     """
     url = f"{API_BASE_URL}/api/chat"
-    payload: dict[str, str] = {"question": question}
+    payload: dict = {
+        "question": question,
+        "history":  (history or [])[-6:],   # cap at last 6 messages for safety
+    }
 
     try:
         response = requests.post(url, json=payload, timeout=_CHAT_TIMEOUT_S)

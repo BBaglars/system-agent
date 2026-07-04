@@ -15,7 +15,7 @@ import type { DnsHealthResult } from "../../../skills/resolveDnsHealth";
 const dns = dnsModule.promises;
 
 const { ChatOllama } = ollamaModule;
-const { HumanMessage, SystemMessage } = messagesModule;
+const { HumanMessage, SystemMessage, AIMessage } = messagesModule;
 
 const { getToolsForContext } = semanticRouterModule as {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -245,15 +245,32 @@ async function executeToolCall(
 
 // ── Helper: invoke a model and extract the string content ─────────────────────
 
+// Builds a message array from system + optional history + human prompt,
+// then invokes the model and returns plain string content.
+// history is only passed for Reporter calls — never for the Extractor.
 async function invokeText(
   model: InstanceType<typeof ChatOllama>,
   system: string,
-  human: string
+  human: string,
+  history: Array<{ role: string; content: string }> = []
 ): Promise<string> {
+  // Convert {role, content} dicts from Python into LangChain message objects.
+  // Unknown roles default to AIMessage so no entry is silently dropped.
+  // map() avoids the union-narrowing issue flatMap() causes with TS strict mode.
+  const historyMessages = history.map((msg) =>
+    msg.role === "user"
+      ? new HumanMessage(msg.content)
+      : new AIMessage(msg.content)
+  );
+
+  // Cast to any[] to satisfy LangChain's overloaded invoke() signatures under
+  // exactOptionalPropertyTypes — runtime behaviour is identical.
   const response = await model.invoke([
     new SystemMessage(system),
+    ...historyMessages,
     new HumanMessage(human),
-  ]);
+  ] as any[]); // eslint-disable-line @typescript-eslint/no-explicit-any
+
   return typeof response.content === "string"
     ? response.content
     : JSON.stringify(response.content, null, 2);
@@ -262,19 +279,27 @@ async function invokeText(
 // ── Main pipeline ──────────────────────────────────────────────────────────────
 
 // runDiagnostic orchestrates the 3-stage deterministic pipeline:
-//   Stage 1 — Extractor LLM (format:json, no tool tokens)
+//   Stage 1 — Extractor LLM (format:json, userInput only — history deliberately excluded)
 //   Stage 2 — Node.js Executor (deterministic, no LLM)
-//   Stage 3 — Reporter LLM (plain text, no tool tokens)
-async function runDiagnostic(userInput: string, sessionId: string): Promise<string> {
+//   Stage 3 — Reporter LLM (userInput + toolData + history for conversational context)
+async function runDiagnostic(
+  userInput: string,
+  sessionId: string,
+  history: Array<{ role: string; content: string }> = []
+): Promise<string> {
   // ── Pre-flight: keyword check avoids the extractor call for pure chat ──────
   const needsTools = getToolsForContext(userInput).length > 0;
 
   if (!needsTools) {
     console.log("[ SUPERVISOR ] Route: CHAT (no network keywords matched)");
-    return invokeText(reporterModel, CHAT_PROMPT, userInput);
+    // Pass history so the model remembers previous turns in the conversation.
+    return invokeText(reporterModel, CHAT_PROMPT, userInput, history);
   }
 
   // ── Stage 1: Extractor ─────────────────────────────────────────────────────
+  // History is intentionally NOT passed here: the extractor uses format:"json"
+  // and must classify only the current intent.  Injecting history tokens
+  // destabilises the constrained-sampling output and causes parse failures.
   console.log("[ SUPERVISOR ] Route: NETWORK — running extractor...");
 
   const rawJson = await invokeText(extractorModel, EXTRACTOR_PROMPT, userInput);
@@ -285,13 +310,13 @@ async function runDiagnostic(userInput: string, sessionId: string): Promise<stri
   } catch (err) {
     // Malformed JSON from extractor — fall back to conversational response.
     console.warn("[ SUPERVISOR ] Extractor JSON parse failed:", err);
-    return invokeText(reporterModel, CHAT_PROMPT, userInput);
+    return invokeText(reporterModel, CHAT_PROMPT, userInput, history);
   }
 
   if (!toolCall.tool) {
     // Extractor decided no tool is needed (returned {}).
     console.log("[ SUPERVISOR ] Extractor returned no tool — falling back to chat.");
-    return invokeText(reporterModel, CHAT_PROMPT, userInput);
+    return invokeText(reporterModel, CHAT_PROMPT, userInput, history);
   }
 
   console.log(`[ SUPERVISOR ] Extractor decided: ${JSON.stringify(toolCall)}`);
@@ -301,10 +326,12 @@ async function runDiagnostic(userInput: string, sessionId: string): Promise<stri
   console.log(`[ SUPERVISOR ] Executor retrieved ${toolData.length} chars of data.`);
 
   // ── Stage 3: Reporter ──────────────────────────────────────────────────────
+  // history is passed here so the Reporter can synthesise answers that
+  // reference previous turns ("Önceki sorumda ne demiştim?" etc.).
   const reporterInput =
     `User question: "${userInput}"\n\nNetwork data retrieved:\n${toolData}`;
 
-  return invokeText(reporterModel, REPORTER_PROMPT, reporterInput);
+  return invokeText(reporterModel, REPORTER_PROMPT, reporterInput, history);
 }
 
 module.exports = { runDiagnostic };

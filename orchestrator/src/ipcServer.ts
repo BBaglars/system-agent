@@ -9,7 +9,11 @@ const { createSnapshot } = snapshotStoreModule as {
 };
 
 const { runDiagnostic } = supervisorModule as {
-  runDiagnostic: (userInput: string, sessionId: string) => Promise<string>;
+  runDiagnostic: (
+    userInput: string,
+    sessionId: string,
+    history?: Array<{ role: string; content: string }>
+  ) => Promise<string>;
 };
 
 const SOCKET_PATH = "/tmp/system_agent.sock";
@@ -272,12 +276,12 @@ function startHttpServer(): void {
       void (async () => {
         try {
           const body = await readRequestBody(request);
+          const typedBody =
+            body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
+
           const question =
-            body !== null &&
-            typeof body === "object" &&
-            "question" in body &&
-            typeof (body as { question: unknown }).question === "string"
-              ? (body as { question: string }).question.trim()
+            typeof typedBody["question"] === "string"
+              ? typedBody["question"].trim()
               : "";
 
           if (!question) {
@@ -286,19 +290,35 @@ function startHttpServer(): void {
             return;
           }
 
+          // Extract conversation history forwarded by the Python client.
+          // Validated to be an array of {role, content} objects; malformed entries
+          // are silently dropped so a bad payload never crashes the pipeline.
+          type HistoryEntry = { role: string; content: string };
+          const rawHistory = Array.isArray(typedBody["history"]) ? typedBody["history"] : [];
+          const history: HistoryEntry[] = (rawHistory as unknown[]).reduce<HistoryEntry[]>(
+            (acc, item) => {
+              if (
+                item !== null &&
+                typeof item === "object" &&
+                typeof (item as Record<string, unknown>)["role"] === "string" &&
+                typeof (item as Record<string, unknown>)["content"] === "string"
+              ) {
+                acc.push(item as HistoryEntry);
+              }
+              return acc;
+            },
+            []
+          );
+
           // Freeze the current network state into an immutable, addressable snapshot.
           const events = memory.getRecentEvents();
           const sessionId = createSnapshot(events);
 
           console.log(
-            `[ API ] Chat request received. question="${question}" session=${sessionId} events=${events.length}`
+            `[ API ] Chat request received. question="${question}" session=${sessionId} events=${events.length} history=${history.length}`
           );
 
-          // Fully neutral prompt: no tool-call directives.
-          // Pass question and sessionId as separate arguments.
-          // The supervisor's extractor stage decides whether the snapshot is needed;
-          // the Node.js executor fetches data directly — no LLM tool-call tokens involved.
-          const report = await runDiagnostic(question, sessionId);
+          const report = await runDiagnostic(question, sessionId, history);
 
           response.writeHead(200, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ report }));

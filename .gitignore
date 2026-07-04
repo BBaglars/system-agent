@@ -26,3 +26,6 @@ network_sensor/agent_sensor
 **/*.pyd
 ui_listener/venv/
 ui_listener/env/
+
+# SQLite kalıcı sohbet geçmişi — yerel cihaza özgü, repoya commit'lenmemeli
+ui_listener/chat_history.db
