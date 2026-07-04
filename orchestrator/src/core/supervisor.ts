@@ -5,8 +5,12 @@ import semanticRouterModule = require("./semanticRouter");
 import snapshotStoreModule = require("./snapshotStore");
 import lookupIpInfoSkill = require("../../../skills/lookupIpInfo");
 import listListeningPortsSkill = require("../../../skills/listListeningPorts");
+import probeLocalPortSkill = require("../../../skills/probeLocalPort");
+import resolveDnsHealthSkill = require("../../../skills/resolveDnsHealth");
 
 import type { ListeningPortsResult } from "../../../skills/listListeningPorts";
+import type { ProbeLocalPortResult } from "../../../skills/probeLocalPort";
+import type { DnsHealthResult } from "../../../skills/resolveDnsHealth";
 
 const dns = dnsModule.promises;
 
@@ -30,6 +34,14 @@ const { lookupIpInfo } = lookupIpInfoSkill as {
 
 const { listListeningPorts } = listListeningPortsSkill as {
   listListeningPorts: (targetPort?: number) => Promise<ListeningPortsResult>;
+};
+
+const { probeLocalPort } = probeLocalPortSkill as {
+  probeLocalPort: (port: number, host?: string, timeoutMs?: number) => Promise<ProbeLocalPortResult>;
+};
+
+const { resolveDnsHealth } = resolveDnsHealthSkill as {
+  resolveDnsHealth: (domain: string) => Promise<DnsHealthResult>;
 };
 
 // ── Model instances ────────────────────────────────────────────────────────────
@@ -59,12 +71,16 @@ FIELD RULES — follow these exactly:
 3. "dport": include ONLY if the user names a specific port number. Exception: if the user mentions a web site (YouTube, Google, etc.) or says they cannot access a URL / the internet, infer HTTPS and output "dport": 443.
 4. "limit": always include as 15 when tool is fetch_snapshot_data.
 5. "target_port": include ONLY when tool is list_listening_ports AND the user names a specific port number to check. Omit if they ask for all ports.
+6. "port": required when tool is probe_local_port. "host": include ONLY if the user mentions a non-localhost address; otherwise omit (defaults to 127.0.0.1).
+7. "domain": required when tool is resolve_dns_health. Strip any http:// or https:// prefix and include only the bare domain.
 
 CLASSIFICATION:
 - Conversational, greeting, or off-topic → {}
 - Network traffic inspection needed → {"tool":"fetch_snapshot_data", ...only known fields..., "limit":15}
 - A specific IP address must be looked up → {"tool":"analyze_external_ip","ip_address":"<the ip>"}
 - User asks which ports are open OR whether a specific port/service is listening → {"tool":"list_listening_ports"} or {"tool":"list_listening_ports","target_port":<number>}
+- User says they CANNOT CONNECT to a specific port/service (connection refused, no response) → {"tool":"probe_local_port","port":<number>}
+- User says a website or domain is not loading, DNS error, or domain cannot be resolved → {"tool":"resolve_dns_health","domain":"<bare domain>"}
 
 EXAMPLES:
 - "YouTube'a giremiyorum" → {"tool":"fetch_snapshot_data","dport":443,"limit":15}
@@ -75,6 +91,13 @@ EXAMPLES:
 - "3000 portu dinleniyor mu?" → {"tool":"list_listening_ports","target_port":3000}
 - "Redis çalışıyor mu?" → {"tool":"list_listening_ports","target_port":6379}
 - "8080'de bir şey var mı?" → {"tool":"list_listening_ports","target_port":8080}
+- "3000 portuna bağlanamıyorum" → {"tool":"probe_local_port","port":3000}
+- "Postgres'e erişemiyorum" → {"tool":"probe_local_port","port":5432}
+- "localhost:8080 yanıt vermiyor" → {"tool":"probe_local_port","port":8080}
+- "192.168.1.10:22 açık mı?" → {"tool":"probe_local_port","port":22,"host":"192.168.1.10"}
+- "google.com açılmıyor" → {"tool":"resolve_dns_health","domain":"google.com"}
+- "api.example.com'a ulaşamıyorum" → {"tool":"resolve_dns_health","domain":"api.example.com"}
+- "DNS sorunum var gibi" → {"tool":"resolve_dns_health","domain":"google.com"}
 - "Nasılsın?" → {}`;
 
 const REPORTER_PROMPT = `You are a network security analyst.
@@ -89,13 +112,26 @@ Answer conversationally and honestly. If you do not know something, say so.`;
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface ExtractorResult {
-  tool?: "fetch_snapshot_data" | "analyze_external_ip" | "list_listening_ports" | null;
+  tool?:
+    | "fetch_snapshot_data"
+    | "analyze_external_ip"
+    | "list_listening_ports"
+    | "probe_local_port"
+    | "resolve_dns_health"
+    | null;
+  // fetch_snapshot_data params
   comm?: string;
   ip_address?: string;
   dport?: number;
   limit?: number;
-  // list_listening_ports parameter: omit to get all ports, set to check a specific one.
+  // list_listening_ports param
   target_port?: number;
+  // probe_local_port params
+  port?: number;
+  host?: string;
+  timeout_ms?: number;
+  // resolve_dns_health param
+  domain?: string;
 }
 
 // Filtered event shape returned by snapshotStore.filterEvents.
@@ -179,6 +215,20 @@ async function executeToolCall(
   if (toolCall.tool === "list_listening_ports") {
     // target_port is optional: undefined means "return all listening ports".
     const result = await listListeningPorts(toolCall.target_port);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolCall.tool === "probe_local_port" && toolCall.port !== undefined) {
+    const result = await probeLocalPort(
+      toolCall.port,
+      toolCall.host,
+      toolCall.timeout_ms
+    );
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolCall.tool === "resolve_dns_health" && toolCall.domain !== undefined) {
+    const result = await resolveDnsHealth(toolCall.domain);
     return JSON.stringify(result, null, 2);
   }
 

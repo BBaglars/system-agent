@@ -1,6 +1,8 @@
 import lookupIpWrapperModule = require("./wrappers/lookupIpWrapper");
 import fetchSnapshotWrapperModule = require("./wrappers/fetchSnapshotWrapper");
 import listenPortsWrapperModule = require("./wrappers/listenPortsWrapper");
+import probePortWrapperModule = require("./wrappers/probePortWrapper");
+import dnsHealthWrapperModule = require("./wrappers/dnsHealthWrapper");
 
 const { analyzeExternalIpTool, triggerKeywords: ipKeywords } = lookupIpWrapperModule as {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,6 +19,18 @@ const { fetchSnapshotDataTool, triggerKeywords: snapshotKeywords } = fetchSnapsh
 const { listListeningPortsTool, triggerKeywords: listenPortsKeywords } = listenPortsWrapperModule as {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   listListeningPortsTool: any;
+  triggerKeywords: readonly string[];
+};
+
+const { probeLocalPortTool, triggerKeywords: probePortKeywords } = probePortWrapperModule as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  probeLocalPortTool: any;
+  triggerKeywords: readonly string[];
+};
+
+const { resolveDnsHealthTool, triggerKeywords: dnsHealthKeywords } = dnsHealthWrapperModule as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  resolveDnsHealthTool: any;
   triggerKeywords: readonly string[];
 };
 
@@ -54,6 +68,20 @@ const toolCatalog: ToolRegistration[] = [
     name: "list_listening_ports",
     triggerKeywords: listenPortsKeywords,
     // Not a default tool: only activated when the user asks about live port/service state.
+    isDefault: false,
+  },
+  {
+    tool: probeLocalPortTool,
+    name: "probe_local_port",
+    triggerKeywords: probePortKeywords,
+    // Not a default tool: only activated when user reports a connection failure.
+    isDefault: false,
+  },
+  {
+    tool: resolveDnsHealthTool,
+    name: "resolve_dns_health",
+    triggerKeywords: dnsHealthKeywords,
+    // Not a default tool: only activated when user reports a domain/DNS issue.
     isDefault: false,
   },
 ];
