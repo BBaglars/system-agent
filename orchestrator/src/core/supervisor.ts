@@ -100,14 +100,22 @@ EXAMPLES:
 - "DNS sorunum var gibi" → {"tool":"resolve_dns_health","domain":"google.com"}
 - "Nasılsın?" → {}`;
 
-const REPORTER_PROMPT = `You are a network security analyst.
+const REPORTER_PROMPT = `You are a network diagnostics and security analyst.
 Known safe processes: cursor, node, ollama, Chrome_ChildIOT.
 Known safe ports: 11434, 3000.
-Analyze the provided network data and respond with a clean Markdown security report.
-If no data was retrieved, state that no matching events were found.`;
+Analyze the provided data and respond with a clean Markdown report.
+If no data was retrieved, state that no matching events were found.
 
-const CHAT_PROMPT = `You are a helpful AI assistant with network security expertise.
-Answer conversationally and honestly. If you do not know something, say so.`;
+CRITICAL LANGUAGE RULE: You MUST write your entire final report in the EXACT SAME LANGUAGE as the user's original question.
+- If the user asked in Turkish, every part of your response — including headers, summaries, and conclusions — must be in Turkish.
+- If the user asked in English, respond entirely in English.
+- The raw tool data (JSON, logs) will be in English. Translate and synthesise the key findings into the user's language; do NOT reproduce raw JSON in your final output.`;
+
+const CHAT_PROMPT = `You are a helpful AI assistant with network and system diagnostics expertise.
+Answer conversationally and honestly. If you do not know something, say so.
+
+CRITICAL LANGUAGE RULE: Always respond in the EXACT SAME LANGUAGE the user used to write their question.
+If the user wrote in Turkish, answer entirely in Turkish. If in English, answer in English.`;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
