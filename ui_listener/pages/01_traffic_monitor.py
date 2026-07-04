@@ -67,8 +67,29 @@ st.markdown(
     <style>
     /* ── Page chrome ─────────────────────────────────────────────────── */
     [data-testid="stAppViewContainer"] { background: #0d1117; color: #c9d1d9; }
-    [data-testid="stSidebar"]          { background: #161b22; border-right: 1px solid #30363d; }
+    [data-testid="stSidebar"]          { border-right: 1px solid #30363d; }
     [data-testid="stHeader"]           { background: transparent; }
+
+    /* ── Sidebar widget backgrounds — match the sidebar tone ─────────── */
+    /* multiselect container */
+    section[data-testid="stSidebar"] [data-testid="stMultiSelect"] > div:first-child,
+    section[data-testid="stSidebar"] [data-baseweb="select"] > div,
+    section[data-testid="stSidebar"] [data-baseweb="input"] > div {
+        background-color: #2d3a4a !important;
+        border-color: #3d4f63 !important;
+        border-radius: 6px !important;
+    }
+    /* text input field */
+    section[data-testid="stSidebar"] input[type="text"] {
+        background-color: #2d3a4a !important;
+        border-color: #3d4f63 !important;
+        border-radius: 6px !important;
+        color: #e2e8f0 !important;
+    }
+    /* selected tags inside multiselect */
+    section[data-testid="stSidebar"] [data-baseweb="tag"] {
+        background-color: #3b5a7a !important;
+    }
 
     /* ── KPI cards ───────────────────────────────────────────────────── */
     div[data-testid="stMetric"] {
@@ -131,8 +152,8 @@ st.markdown(
 # ---------------------------------------------------------------------------
 col_title, col_status = st.columns([4, 1])
 with col_title:
-    st.markdown("## 🌐 Live Traffic Monitor")
-    st.caption("Real-time eBPF kernel events · Auto-refreshes every 2 s")
+    st.markdown("## 🌐 Trafik Monitörü")
+    st.caption("Gerçek zamanlı eBPF çekirdek olayları · Her 2 saniyede otomatik yenilenir")
 
 # ---------------------------------------------------------------------------
 # Data fetch — index-stable snapshot strategy.
@@ -164,8 +185,8 @@ if not raw_events:
     with col_status:
         st.markdown('<span class="pill-err">● OFFLINE</span>', unsafe_allow_html=True)
     st.warning(
-        "⏳ No events received yet. "
-        "Ensure the eBPF sensor and orchestrator are running."
+        "⏳ Henüz olay alınmadı. "
+        "eBPF sensörünün ve orkestratörün çalıştığından emin ol."
     )
     time.sleep(TRAFFIC_REFRESH_INTERVAL_MS / 1000)
     st.rerun()
@@ -206,10 +227,10 @@ if "comm" in df_raw.columns and not df_raw["comm"].empty:
         top_app = top_app_series.value_counts().idxmax()
 
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("📦 Total Events",      f"{total_events:,}")
-k2.metric("✅ Established",        f"{established:,}")
-k3.metric("❌ Closed / Refused",   f"{refused:,}")
-k4.metric("🏆 Top Process",        top_app)
+k1.metric("📦 Toplam Olay",          f"{total_events:,}")
+k2.metric("✅ Bağlantı Kuruldu",     f"{established:,}")
+k3.metric("❌ Kapatıldı / Reddedildi", f"{refused:,}")
+k4.metric("🏆 En Aktif Süreç",       top_app)
 
 st.divider()
 
@@ -217,48 +238,47 @@ st.divider()
 # Sidebar — Filters
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### 🔍 Display Filters")
-    st.caption("Wireshark-style packet filtering")
+    st.markdown("### 🔍 Görüntüleme Filtreleri")
 
-    st.markdown('<p class="section-title">Application</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Uygulama</p>', unsafe_allow_html=True)
     all_apps = sorted(df_raw["comm"].replace("", pd.NA).dropna().unique().tolist())
     selected_apps: list[str] = st.multiselect(
-        "Process (comm)",
+        "Süreç (comm)",
         options=all_apps,
         default=[],
-        placeholder="All processes",
+        placeholder="Tüm süreçler",
         label_visibility="collapsed",
     )
 
-    st.markdown('<p class="section-title">Destination Port</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Hedef Port</p>', unsafe_allow_html=True)
     all_ports = sorted(
         df_raw["dport"].dropna().astype(int).unique().tolist()
     )
     selected_ports: list[int] = st.multiselect(
-        "Dest Port",
+        "Hedef Port",
         options=all_ports,
         default=[],
         format_func=lambda p: f":{p}",
-        placeholder="All ports",
+        placeholder="Tüm portlar",
         label_visibility="collapsed",
     )
 
-    st.markdown('<p class="section-title">Connection State</p>', unsafe_allow_html=True)
-    show_established = st.checkbox("✅ Established  (state = 1)", value=True)
-    show_refused     = st.checkbox("❌ Closed/Refused (state = 7)", value=True)
-    show_unknown     = st.checkbox("❓ Unknown state",              value=True)
+    st.markdown('<p class="section-title">Bağlantı Durumu</p>', unsafe_allow_html=True)
+    show_established = st.checkbox("✅ Kuruldu  (durum = 1)", value=True)
+    show_refused     = st.checkbox("❌ Kapatıldı/Reddedildi (durum = 7)", value=True)
+    show_unknown     = st.checkbox("❓ Bilinmeyen durum",                  value=True)
 
-    st.markdown('<p class="section-title">Search</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Arama</p>', unsafe_allow_html=True)
     search_term: str = st.text_input(
-        "IP address or hostname",
-        placeholder="e.g.  142.250  or  google",
+        "IP adresi",
+        placeholder="örn.  142.250  veya  8.8",
         label_visibility="collapsed",
     )
 
     st.divider()
     st.caption(
-        f"Buffer: **{total_events}** events · "
-        f"Showing: **{min(total_events, MAX_DISPLAYED_EVENTS)}**"
+        f"Önbellek: **{total_events}** olay · "
+        f"Gösterilen: **{min(total_events, MAX_DISPLAYED_EVENTS)}**"
     )
 
 # ---------------------------------------------------------------------------
@@ -290,25 +310,23 @@ if search_term.strip():
 # ---------------------------------------------------------------------------
 # Presentation DataFrame — friendly column names + state badge column
 # ---------------------------------------------------------------------------
-STATE_LABEL = {1: "✅ ESTABLISHED", 7: "❌ CLOSED/REFUSED"}
+STATE_LABEL = {1: "✅ KURULDU", 7: "❌ KAPATILDI/REDDEDİLDİ"}
 
 df_display = df[["pid", "comm", "ip_address", "dport", "tcp_state"]].copy()
-df_display["State"] = df_display["tcp_state"].map(STATE_LABEL).fillna("❓ UNKNOWN")
+df_display["State"] = df_display["tcp_state"].map(STATE_LABEL).fillna("❓ BİLİNMİYOR")
 
 df_display.rename(
     columns={
         "pid":       "PID",
-        "comm":      "Process",
-        "ip_address":"Dest IP",
-        "dport":     "Dest Port",
-        "tcp_state": "_state_num",  # numeric copy kept only for Styler logic
+        "comm":      "Süreç",
+        "ip_address":"Hedef IP",
+        "dport":     "Hedef Port",
+        "tcp_state": "_state_num",
     },
     inplace=True,
 )
 
-# Domain column is intentionally omitted: PTR records are fetched on-demand
-# in the detail inspector rather than on every table refresh.
-visible_cols = ["PID", "Process", "Dest IP", "Dest Port", "State"]
+visible_cols = ["PID", "Süreç", "Hedef IP", "Hedef Port", "State"]
 df_display = df_display[visible_cols]
 
 # ---------------------------------------------------------------------------
@@ -321,15 +339,15 @@ df_display = df_display[visible_cols]
 
 def _highlight_anomaly_rows(row: pd.Series) -> list[str]:
     """Apply a subtle dark-red wash only to refused/closed connections."""
-    if row["State"] == "❌ CLOSED/REFUSED":
+    if row["State"] == "❌ KAPATILDI/REDDEDİLDİ":
         return ["background-color: rgba(248, 81, 73, 0.09);"] * len(row)
     return [""] * len(row)
 
 def _style_state_cell(val: str) -> str:
     """Colour the State cell text; leave the row background untouched."""
-    if val == "✅ ESTABLISHED":
+    if val == "✅ KURULDU":
         return "color: #3fb950; font-weight: 500;"
-    if val == "❌ CLOSED/REFUSED":
+    if val == "❌ KAPATILDI/REDDEDİLDİ":
         return "color: #f85149; font-weight: 600;"
     return "color: #8b949e;"
 
@@ -344,9 +362,9 @@ styled = (
 # ---------------------------------------------------------------------------
 st.markdown(
     f"<p style='color:#8b949e; font-size:.8rem; margin-bottom:4px;'>"
-    f"Showing <b style='color:#e6edf3'>{len(df_display)}</b> packets "
-    f"{'(filtered) ' if len(df_display) != len(df_raw) else ''}"
-    f"· click a row to inspect it below</p>",
+    f"<b style='color:#e6edf3'>{len(df_display)}</b> paket gösteriliyor "
+    f"{'(filtrelenmiş) ' if len(df_display) != len(df_raw) else ''}"
+    f"· detay için bir satıra tıkla</p>",
     unsafe_allow_html=True,
 )
 
@@ -398,13 +416,13 @@ frozen_packet: dict | None = st.session_state.get("selected_packet")
 
 detail_header_col, freeze_badge_col = st.columns([3, 1])
 with detail_header_col:
-    st.markdown("#### 🔬 Packet Details")
+    st.markdown("#### 🔬 Paket Detayları")
 with freeze_badge_col:
     if frozen_packet:
         st.markdown(
             '<span style="background:#1a2a3a;color:#58a6ff;border:1px solid #1f6feb;'
             'border-radius:20px;padding:3px 12px;font-size:.73rem;font-weight:600;">'
-            "🔒 FROZEN — click away to resume live feed</span>",
+            "🔒 DONDURULDU — devam için başka yere tıkla</span>",
             unsafe_allow_html=True,
         )
 
@@ -435,7 +453,7 @@ if frozen_packet:
 
     # On-demand PTR lookup — result is served from Streamlit's cache after
     # the first query so subsequent clicks on the same IP are instant.
-    with st.spinner("Resolving hostname…"):
+    with st.spinner("Alan adı çözümleniyor…"):
         resolved = resolve_hostname(ip)
 
     # Use the PTR record as the display target when available.
@@ -448,19 +466,19 @@ if frozen_packet:
         st.markdown(
             f"""
             <div class="meta-card">
-              <span class="meta-label">Connection Outcome</span>
+              <span class="meta-label">Bağlantı Sonucu</span>
               {state_badge}
 
-              <span class="meta-label">Process</span>
+              <span class="meta-label">Süreç</span>
               <span class="meta-value">{proc}</span>
 
-              <span class="meta-label">Target</span>
+              <span class="meta-label">Hedef</span>
               <span class="meta-value">{display_target}:{port}</span>
 
-              <span class="meta-label">Raw Dest IP</span>
+              <span class="meta-label">Ham Hedef IP</span>
               <span class="meta-value">{ip}</span>
 
-              <span class="meta-label">Resolved Domain</span>
+              <span class="meta-label">Çözümlenen Alan Adı</span>
               <span class="meta-value">{resolved}</span>
 
               <span class="meta-label">PID</span>
@@ -473,7 +491,7 @@ if frozen_packet:
         st.markdown("&nbsp;", unsafe_allow_html=True)
 
         # Routes to the AI copilot page with this packet pre-filled as context.
-        if st.button("🤖 Ask AI about this packet", use_container_width=True):
+        if st.button("🤖 Bu Paketi Yapay Zekaya Sor", use_container_width=True):
             question = (
                 f"Bu paketi analiz et: Process={proc}, "
                 f"Dest={display_target}:{port} (IP: {ip}), "
@@ -493,7 +511,7 @@ if frozen_packet:
 else:
     st.markdown(
         '<div style="color:#8b949e; padding:20px 0; font-size:.85rem;">'
-        "↑ Click any row in the table above to inspect its full packet details here."
+        "↑ Detayları görmek için yukarıdaki tablodan bir satıra tıkla."
         "</div>",
         unsafe_allow_html=True,
     )
