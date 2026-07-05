@@ -7,10 +7,16 @@ import lookupIpInfoSkill = require("../../../skills/lookupIpInfo");
 import listListeningPortsSkill = require("../../../skills/listListeningPorts");
 import probeLocalPortSkill = require("../../../skills/probeLocalPort");
 import resolveDnsHealthSkill = require("../../../skills/resolveDnsHealth");
+import checkTlsCertificateSkill = require("../../../skills/checkTlsCertificate");
+import httpEndpointProbeSkill = require("../../../skills/httpEndpointProbe");
+import tracerouteAnalysisSkill = require("../../../skills/tracerouteAnalysis");
 
 import type { ListeningPortsResult } from "../../../skills/listListeningPorts";
 import type { ProbeLocalPortResult } from "../../../skills/probeLocalPort";
 import type { DnsHealthResult } from "../../../skills/resolveDnsHealth";
+import type { TlsCertificateResult } from "../../../skills/checkTlsCertificate";
+import type { HttpEndpointResult } from "../../../skills/httpEndpointProbe";
+import type { TracerouteResult } from "../../../skills/tracerouteAnalysis";
 
 const dns = dnsModule.promises;
 
@@ -44,6 +50,18 @@ const { resolveDnsHealth } = resolveDnsHealthSkill as {
   resolveDnsHealth: (domain: string) => Promise<DnsHealthResult>;
 };
 
+const { checkTlsCertificate } = checkTlsCertificateSkill as {
+  checkTlsCertificate: (host: string, port?: number, timeoutMs?: number) => Promise<TlsCertificateResult>;
+};
+
+const { httpEndpointProbe } = httpEndpointProbeSkill as {
+  httpEndpointProbe: (targetUrl: string, method?: "HEAD" | "GET", timeoutMs?: number) => Promise<HttpEndpointResult>;
+};
+
+const { tracerouteAnalysis } = tracerouteAnalysisSkill as {
+  tracerouteAnalysis: (target: string, maxHops?: number) => Promise<TracerouteResult>;
+};
+
 // ── Model instances ────────────────────────────────────────────────────────────
 
 // Extractor: format:"json" engages Ollama's constrained token sampling.
@@ -73,32 +91,48 @@ FIELD RULES — follow these exactly:
 5. "target_port": include ONLY when tool is list_listening_ports AND the user names a specific port number to check. Omit if they ask for all ports.
 6. "port": required when tool is probe_local_port. "host": include ONLY if the user mentions a non-localhost address; otherwise omit (defaults to 127.0.0.1).
 7. "domain": required when tool is resolve_dns_health. Strip any http:// or https:// prefix and include only the bare domain.
+8. "tls_host": bare hostname only — NO scheme prefix. Required when tool is check_tls_certificate.
+9. "tls_port": include ONLY if the user names a non-443 TLS port. Omit otherwise.
+10. "url": full URL including scheme (https:// or http://). Required when tool is http_endpoint_probe. If user gives only a domain, prepend "https://".
+11. "target": bare hostname or IP. Required when tool is traceroute_analysis.
+12. "max_hops": include ONLY if user specifies a hop count limit. Omit otherwise.
 
 CLASSIFICATION:
-- Conversational, greeting, or off-topic → {}
-- Network traffic inspection needed → {"tool":"fetch_snapshot_data", ...only known fields..., "limit":15}
-- A specific IP address must be looked up → {"tool":"analyze_external_ip","ip_address":"<the ip>"}
-- User asks which ports are open OR whether a specific port/service is listening → {"tool":"list_listening_ports"} or {"tool":"list_listening_ports","target_port":<number>}
-- User says they CANNOT CONNECT to a specific port/service (connection refused, no response) → {"tool":"probe_local_port","port":<number>}
-- User says a website or domain is not loading, DNS error, or domain cannot be resolved → {"tool":"resolve_dns_health","domain":"<bare domain>"}
+- Conversational, greeting, or off-topic: {}
+- Network traffic inspection needed: {"tool":"fetch_snapshot_data", ...only known fields..., "limit":15}
+- A specific IP address must be looked up: {"tool":"analyze_external_ip","ip_address":"<the ip>"}
+- User asks which ports are open OR whether a specific port/service is listening: {"tool":"list_listening_ports"} or {"tool":"list_listening_ports","target_port":<number>}
+- User says they CANNOT CONNECT to a specific port/service (connection refused, no response): {"tool":"probe_local_port","port":<number>}
+- User says a website or domain is not loading, DNS error, or domain cannot be resolved: {"tool":"resolve_dns_health","domain":"<bare domain>"}
+- User asks about TLS/SSL/certificate validity, expiry, or fingerprint: {"tool":"check_tls_certificate","tls_host":"<bare hostname>"}
+- User asks whether an HTTP/HTTPS endpoint is up, returns an error code, or is slow: {"tool":"http_endpoint_probe","url":"<full url with scheme>"}
+- User wants to trace the network route to a host, asks about hops, packet path, or high latency: {"tool":"traceroute_analysis","target":"<hostname or ip>"}
 
 EXAMPLES:
-- "YouTube'a giremiyorum" → {"tool":"fetch_snapshot_data","dport":443,"limit":15}
-- "Chrome trafiğini kontrol et" → {"tool":"fetch_snapshot_data","comm":"chrome","dport":443,"limit":15}
-- "curl ile bir sorun var" → {"tool":"fetch_snapshot_data","comm":"curl","limit":15}
-- "185.199.109.133 şüpheli mi?" → {"tool":"analyze_external_ip","ip_address":"185.199.109.133"}
-- "Hangi portlar açık?" → {"tool":"list_listening_ports"}
-- "3000 portu dinleniyor mu?" → {"tool":"list_listening_ports","target_port":3000}
-- "Redis çalışıyor mu?" → {"tool":"list_listening_ports","target_port":6379}
-- "8080'de bir şey var mı?" → {"tool":"list_listening_ports","target_port":8080}
-- "3000 portuna bağlanamıyorum" → {"tool":"probe_local_port","port":3000}
-- "Postgres'e erişemiyorum" → {"tool":"probe_local_port","port":5432}
-- "localhost:8080 yanıt vermiyor" → {"tool":"probe_local_port","port":8080}
-- "192.168.1.10:22 açık mı?" → {"tool":"probe_local_port","port":22,"host":"192.168.1.10"}
-- "google.com açılmıyor" → {"tool":"resolve_dns_health","domain":"google.com"}
-- "api.example.com'a ulaşamıyorum" → {"tool":"resolve_dns_health","domain":"api.example.com"}
-- "DNS sorunum var gibi" → {"tool":"resolve_dns_health","domain":"google.com"}
-- "Nasılsın?" → {}`;
+- "YouTube'a giremiyorum": {"tool":"fetch_snapshot_data","dport":443,"limit":15}
+- "Chrome trafiğini kontrol et": {"tool":"fetch_snapshot_data","comm":"chrome","dport":443,"limit":15}
+- "curl ile bir sorun var": {"tool":"fetch_snapshot_data","comm":"curl","limit":15}
+- "185.199.109.133 şüpheli mi?": {"tool":"analyze_external_ip","ip_address":"185.199.109.133"}
+- "Hangi portlar açık?": {"tool":"list_listening_ports"}
+- "3000 portu dinleniyor mu?": {"tool":"list_listening_ports","target_port":3000}
+- "Redis çalışıyor mu?": {"tool":"list_listening_ports","target_port":6379}
+- "8080'de bir şey var mı?": {"tool":"list_listening_ports","target_port":8080}
+- "3000 portuna bağlanamıyorum": {"tool":"probe_local_port","port":3000}
+- "Postgres'e erişemiyorum": {"tool":"probe_local_port","port":5432}
+- "localhost:8080 yanıt vermiyor": {"tool":"probe_local_port","port":8080}
+- "192.168.1.10:22 açık mı?": {"tool":"probe_local_port","port":22,"host":"192.168.1.10"}
+- "google.com açılmıyor": {"tool":"resolve_dns_health","domain":"google.com"}
+- "api.example.com'a ulaşamıyorum": {"tool":"resolve_dns_health","domain":"api.example.com"}
+- "DNS sorunum var gibi": {"tool":"resolve_dns_health","domain":"google.com"}
+- "github.com sertifikası geçerli mi?": {"tool":"check_tls_certificate","tls_host":"github.com"}
+- "SSL sertifika ne zaman bitiyor?": {"tool":"check_tls_certificate","tls_host":"google.com"}
+- "api.example.com:8443 TLS sertifikası?": {"tool":"check_tls_certificate","tls_host":"api.example.com","tls_port":8443}
+- "https://api.example.com çalışıyor mu?": {"tool":"http_endpoint_probe","url":"https://api.example.com"}
+- "site 502 hatası veriyor": {"tool":"http_endpoint_probe","url":"https://example.com"}
+- "localhost:3000 HTTP yanıtı nedir?": {"tool":"http_endpoint_probe","url":"http://localhost:3000"}
+- "8.8.8.8'e paketlerim neden yavaş?": {"tool":"traceroute_analysis","target":"8.8.8.8"}
+- "github.com'a giden rota?": {"tool":"traceroute_analysis","target":"github.com"}
+- "Nasılsın?": {}`;
 
 const REPORTER_PROMPT = `You are a network diagnostics and security analyst.
 Known safe processes: cursor, node, ollama, Chrome_ChildIOT.
@@ -126,6 +160,9 @@ interface ExtractorResult {
     | "list_listening_ports"
     | "probe_local_port"
     | "resolve_dns_health"
+    | "check_tls_certificate"
+    | "http_endpoint_probe"
+    | "traceroute_analysis"
     | null;
   // fetch_snapshot_data params
   comm?: string;
@@ -140,6 +177,15 @@ interface ExtractorResult {
   timeout_ms?: number;
   // resolve_dns_health param
   domain?: string;
+  // check_tls_certificate params
+  tls_host?: string;
+  tls_port?: number;
+  // http_endpoint_probe params
+  url?: string;
+  method?: "HEAD" | "GET";
+  // traceroute_analysis params
+  target?: string;
+  max_hops?: number;
 }
 
 // Filtered event shape returned by snapshotStore.filterEvents.
@@ -237,6 +283,32 @@ async function executeToolCall(
 
   if (toolCall.tool === "resolve_dns_health" && toolCall.domain !== undefined) {
     const result = await resolveDnsHealth(toolCall.domain);
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolCall.tool === "check_tls_certificate" && toolCall.tls_host !== undefined) {
+    const result = await checkTlsCertificate(
+      toolCall.tls_host,
+      toolCall.tls_port,
+      toolCall.timeout_ms
+    );
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolCall.tool === "http_endpoint_probe" && toolCall.url !== undefined) {
+    const result = await httpEndpointProbe(
+      toolCall.url,
+      toolCall.method,
+      toolCall.timeout_ms
+    );
+    return JSON.stringify(result, null, 2);
+  }
+
+  if (toolCall.tool === "traceroute_analysis" && toolCall.target !== undefined) {
+    const result = await tracerouteAnalysis(
+      toolCall.target,
+      toolCall.max_hops
+    );
     return JSON.stringify(result, null, 2);
   }
 

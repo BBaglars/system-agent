@@ -127,6 +127,9 @@ _TOOL_SPINNER: dict[str | None, str] = {
     "resolve_dns_health":   "🌐 Ajan DNS çözümleme zincirini sorguluyor…",
     "fetch_snapshot_data":  "📦 Ajan eBPF snapshot'ını analiz ediyor…",
     "analyze_external_ip":  "🔍 Ajan IP adresini araştırıyor…",
+    "check_tls_certificate": "🔒 Ajan TLS sertifikasını doğruluyor…",
+    "http_endpoint_probe":  "🌍 Ajan HTTP uç noktasını test ediyor…",
+    "traceroute_analysis":  "🗺️ Ajan ağ rotasını izliyor…",
     None:                   "🤔 Ajan soruyu değerlendiriyor…",
 }
 
@@ -146,6 +149,12 @@ def _guess_tool(prompt: str) -> str | None:
         return "resolve_dns_health"
     if any(w in lower for w in ["ip adres", "şüpheli ip", "analyze_external", "kim bu ip"]):
         return "analyze_external_ip"
+    if any(w in lower for w in ["sertifika", "ssl", "tls", "cert", "https hatası", "ne zaman bitiyor", "geçerli mi"]):
+        return "check_tls_certificate"
+    if any(w in lower for w in ["http", "502", "503", "404", "durum kodu", "site çalışıyor", "endpoint", "ttfb"]):
+        return "http_endpoint_probe"
+    if any(w in lower for w in ["rota", "traceroute", "hop", "paket nerede", "ağ yolu", "neden yavaş", "gecikme"]):
+        return "traceroute_analysis"
     if any(w in lower for w in ["snapshot", "trafik", "bağlantı", "paket", "ağ", "https", "port 443"]):
         return "fetch_snapshot_data"
     return None
@@ -204,7 +213,7 @@ with st.sidebar:
     st.markdown("### 🤖 Ajan Durumu")
 
     m1, m2 = st.columns(2)
-    m1.metric("Aktif Yetenek", 5)
+    m1.metric("Aktif Yetenek", 8)
     m2.metric("Toplam Arşiv", len(all_convs))
 
     st.success("🟢 Sistem Çevrimiçi")

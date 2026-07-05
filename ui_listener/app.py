@@ -44,7 +44,7 @@ with st.sidebar:
     st.markdown("### 🖥️ Sistem Durumu")
 
     sb_c1, sb_c2 = st.columns(2)
-    sb_c1.metric("Aktif Yetenek", 5)
+    sb_c1.metric("Aktif Yetenek", 8)
     sb_c2.metric("Toplam Arşiv", _sb_archive)
 
     st.success("🟢 Sistem Çevrimiçi")
@@ -59,6 +59,9 @@ with st.sidebar:
         "🔌 Port Envanteri",
         "🩺 TCP Probe",
         "🌐 DNS Sağlığı",
+        "🔒 TLS Sertifika",
+        "🌍 HTTP Probe",
+        "🗺️ Traceroute",
     ]:
         st.markdown(
             f"<p style='margin:2px 0; font-size:0.82rem; color:#94a3b8;'>{_skill}</p>",
@@ -184,7 +187,7 @@ with c2:
     st.success("● Aktif")
 
 with c3:
-    st.metric("Aktif Yetenek", 5)
+    st.metric("Aktif Yetenek", 8)
 
 with c4:
     st.metric("Toplam Arşiv", _archive_count)
@@ -289,10 +292,28 @@ SKILLS = [
         "desc": "A ve AAAA kayıtlarını sorgular, çözüm süresini ve hata kodunu (ENOTFOUND, ETIMEOUT) raporlar.",
         "tags": '"açılmıyor", "dns sorunu", "domain"',
     },
+    {
+        "icon": "🔒",
+        "name": "TLS Sertifika",
+        "desc": "Hedef sunucunun TLS/SSL sertifikasını kontrol eder: geçerlilik tarihi, CN, SAN listesi ve kalan gün sayısı.",
+        "tags": '"sertifika geçerli mi", "ssl", "https hatası"',
+    },
+    {
+        "icon": "🌍",
+        "name": "HTTP Probe",
+        "desc": "HTTP/HTTPS uç noktasına istek atar; durum kodu, TTFB gecikmesi ve temel response header'larını döner.",
+        "tags": '"502 hatası", "site çalışıyor mu", "http yanıtı"',
+    },
+    {
+        "icon": "🗺️",
+        "name": "Traceroute",
+        "desc": "Hedefe giden ağ rotasını hop hop izler; en yüksek gecikmeyi ve paketin düştüğü noktayı tespit eder.",
+        "tags": '"paket neden yavaş", "rota", "hop sayısı"',
+    },
 ]
 
-skill_cols = st.columns(5)
-for col, skill in zip(skill_cols, SKILLS):
+skill_cols = st.columns(4)
+for col, skill in zip(skill_cols * 2, SKILLS):
     with col:
         st.markdown(
             f"""

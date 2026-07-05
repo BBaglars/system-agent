@@ -3,6 +3,9 @@ import fetchSnapshotWrapperModule = require("./wrappers/fetchSnapshotWrapper");
 import listenPortsWrapperModule = require("./wrappers/listenPortsWrapper");
 import probePortWrapperModule = require("./wrappers/probePortWrapper");
 import dnsHealthWrapperModule = require("./wrappers/dnsHealthWrapper");
+import checkTlsWrapperModule = require("./wrappers/checkTlsWrapper");
+import httpEndpointWrapperModule = require("./wrappers/httpEndpointWrapper");
+import tracerouteWrapperModule = require("./wrappers/tracerouteWrapper");
 
 const { analyzeExternalIpTool, triggerKeywords: ipKeywords } = lookupIpWrapperModule as {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,6 +34,24 @@ const { probeLocalPortTool, triggerKeywords: probePortKeywords } = probePortWrap
 const { resolveDnsHealthTool, triggerKeywords: dnsHealthKeywords } = dnsHealthWrapperModule as {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   resolveDnsHealthTool: any;
+  triggerKeywords: readonly string[];
+};
+
+const { checkTlsCertificateTool, triggerKeywords: tlsKeywords } = checkTlsWrapperModule as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  checkTlsCertificateTool: any;
+  triggerKeywords: readonly string[];
+};
+
+const { httpEndpointProbeTool, triggerKeywords: httpEndpointKeywords } = httpEndpointWrapperModule as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  httpEndpointProbeTool: any;
+  triggerKeywords: readonly string[];
+};
+
+const { tracerouteAnalysisTool, triggerKeywords: tracerouteKeywords } = tracerouteWrapperModule as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tracerouteAnalysisTool: any;
   triggerKeywords: readonly string[];
 };
 
@@ -82,6 +103,27 @@ const toolCatalog: ToolRegistration[] = [
     name: "resolve_dns_health",
     triggerKeywords: dnsHealthKeywords,
     // Not a default tool: only activated when user reports a domain/DNS issue.
+    isDefault: false,
+  },
+  {
+    tool: checkTlsCertificateTool,
+    name: "check_tls_certificate",
+    triggerKeywords: tlsKeywords,
+    // Not a default tool: only activated when user asks about TLS/SSL/certificate.
+    isDefault: false,
+  },
+  {
+    tool: httpEndpointProbeTool,
+    name: "http_endpoint_probe",
+    triggerKeywords: httpEndpointKeywords,
+    // Not a default tool: only activated when user reports HTTP-level issues.
+    isDefault: false,
+  },
+  {
+    tool: tracerouteAnalysisTool,
+    name: "traceroute_analysis",
+    triggerKeywords: tracerouteKeywords,
+    // Not a default tool: only activated when user asks about routing or high latency.
     isDefault: false,
   },
 ];
