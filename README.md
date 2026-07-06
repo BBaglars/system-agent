@@ -10,6 +10,7 @@
 
 ---
 
+![Linux](https://img.shields.io/badge/linux-kernel%205.8%2B-FCC624?style=flat-square&logo=linux&logoColor=black)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white)
 ![Node.js](https://img.shields.io/badge/node.js-20%2B-339933?style=flat-square&logo=node.js&logoColor=white)
@@ -27,7 +28,7 @@
 
 ## Overview
 
-Most network observability stacks require shipping your telemetry to a vendor, trusting a cloud LLM with potentially sensitive connection data, or stitching together a dozen CLI tools by hand.
+NetSkill Agent is built exclusively for Linux-based environments and kernels (≥ 5.8), where eBPF programs can be loaded natively without additional abstraction layers. Most network observability stacks require shipping your telemetry to a vendor, trusting a cloud LLM with potentially sensitive connection data, or stitching together a dozen CLI tools by hand.
 
 **NetSkill Agent eliminates all three trade-offs.**
 
